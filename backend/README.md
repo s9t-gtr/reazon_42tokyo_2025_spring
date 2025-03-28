@@ -1,24 +1,14 @@
-# README
+# setup
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+.env.sampleを.envに置き換える
 
-Things you may want to cover:
+```sh
+bundle install
+rails s -p 3001
+```
 
-* Ruby version
+APIテスト
 
-* System dependencies
-
-* Configuration
-
-* Database creation
-
-* Database initialization
-
-* How to run the test suite
-
-* Services (job queues, cache servers, search engines, etc.)
-
-* Deployment instructions
-
-* ...
+```sh
+curl -X POST http://localhost:3001/api/sensor -H "Content-Type: application/json" -d '{"ax": 0.5, "ay": 0.3, "az": 0.8, "pressure": 1.2}'
+```
