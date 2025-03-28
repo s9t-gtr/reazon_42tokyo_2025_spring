@@ -13,7 +13,7 @@
 
 ### 1. ボタンの状態の更新
 
-#### `PATCH /api/button/:id`
+#### `PUT /api/button/:id`
 
 **説明**  
 指定したボタンの状態（`status`）をトグルします。`status`は`true`（ON）から`false`（OFF）またはその逆に切り替わります。
@@ -64,7 +64,7 @@
 ボタンID 1の状態をトグルするリクエスト:
 
 ```sh
-curl -X PATCH http://localhost:3001/api/button/1 \
+curl -X PUT http://localhost:3001/api/button/1 \
   -H "Content-Type: application/json"
 ```
 
