@@ -1,0 +1,19 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  date: 2025-03-28
+  duration: 1.5
+  heltzh: 1.5
+  yaw_up: 1.5
+  pitch_left: 1.5
+  pressure_avg: 1.5
+  overpressure_count: 1
+
+two:
+  date: 2025-03-28
+  duration: 1.5
+  heltzh: 1.5
+  yaw_up: 1.5
+  pitch_left: 1.5
+  pressure_avg: 1.5
+  overpressure_count: 1
