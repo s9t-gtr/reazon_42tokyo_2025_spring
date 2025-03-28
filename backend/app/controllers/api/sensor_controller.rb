@@ -1,80 +1,47 @@
 class Api::SensorController < ApplicationController
+  # センサーから送信されるデータを処理
   def create
-    # `sensor_data` 内のデータを配列として許可
-    sensor_params = params.require(:sensor_data).map do |sensor|
-      sensor.permit(:time, :ax, :ay, :az, :pressure)
+    sensor_data = params.require(:sensor_data).map do |sensor|
+      sensor.permit(:vibration, :pressure_avg, :pitch_left, :yaw_up)
     end
 
-    # 各データポイントごとに pitch_data を計算
-    pitch_data_list = sensor_params.map { |sensor| calculate_pitch_data(sensor) }
+    # セッションIDをパラメータから取得
+    session_id = params[:session_id]
+    @session = Session.find_by(id: session_id)
 
-    # OpenAI API 呼び出し
-    openai_response = generate_music(pitch_data_list)
 
-    # JSON レスポンスを返す
-    render json: { pitch_data: pitch_data_list, generated_music: openai_response }
+    if @session
+      total_vibration = 0
+      total_pressure_avg = 0
+      total_pitch_left = 0
+      total_yaw_up = 0
+
+      # センサーデータをループして合計を計算
+      sensor_data.each do |data|
+        total_vibration += data[:vibration] if data[:vibration]
+        total_pressure_avg += data[:pressure_avg] if data[:pressure_avg]
+        total_pitch_left += data[:pitch_left] if data[:pitch_left]
+        total_yaw_up += data[:yaw_up] if data[:yaw_up]
+      end
+
+
+      # セッションに新しいデータを反映
+      # @session.heltzh += total_heltz
+      @session.total_vibration += total_vibration
+      @session.pressure_avg += total_pressure_avg
+      @session.pitch_left += total_pitch_left
+      @session.yaw_up += total_yaw_up
+
+
+
+      # セッションを保存
+      @session.save
+
+      render json: { status: "OK", session: @session }
+    else
+      render json: { error: "Session not found" }, status: :not_found
+    end
   rescue => e
     render json: { error: "Internal Server Error", details: e.message }, status: :internal_server_error
-  end
-
-  private
-
-  def calculate_pitch_data(sensor)
-    ax, ay, az, pressure = sensor.values_at(:ax, :ay, :az, :pressure)
-
-    {
-      time: sensor[:time].to_f,
-      pitch_factor: Math.sqrt(ax.to_f**2 + ay.to_f**2 + az.to_f**2),
-      roll: Math.atan2(ay.to_f, az.to_f) * (180 / Math::PI),
-      pitch: Math.atan2(-ax.to_f, Math.sqrt(ay.to_f**2 + az.to_f**2)) * (180 / Math::PI),
-      pressure: pressure.to_f,
-      instrument: "piano"
-    }
-  end
-
-  def generate_music(pitch_data_list)
-    api_key = ENV["OPENAI_API_KEY"]
-    raise "OpenAI API key is missing" unless api_key
-
-    client = OpenAI::Client.new(access_token: api_key)
-
-    # 直近のデータ（最新の10個程度）をプロンプトに反映
-    recent_data = pitch_data_list.last(10)
-
-    prompt = <<~PROMPT
-      Generate a one-bar MIDI note sequence based on these recent sensor readings:
-      #{recent_data.map.with_index { |data, i|# {' '}
-          "- Time: #{data[:time]}s, Pitch factor: #{data[:pitch_factor]}, Roll: #{data[:roll]}, Pitch: #{data[:pitch]}, Pressure: #{data[:pressure]}"
-      }.join("\n")}
-
-      Music Style and Characteristics:
-      - Tempo: 120 BPM
-      - Time Signature: 4/4
-      - Genre: Classical piano
-      - The sequence should contain 4 to 8 notes, with varying pitch, velocity, and duration.
-      - Notes should be dynamic and fit within a single bar.
-
-      Format the response as a JSON array of notes, each containing:
-      - "pitch" (MIDI pitch value)
-      - "velocity" (note intensity)
-      - "duration" (in seconds)
-    PROMPT
-
-    response = client.chat(
-      parameters: {
-        model: "gpt-4",
-        messages: [
-          { role: "system", content: "Generate music" },
-          { role: "user", content: prompt }
-        ],
-        max_tokens: 300,
-        temperature: 0.7
-      }
-    )
-
-    response.dig("choices", 0, "message", "content") || "No music generated"
-  rescue => e
-    Rails.logger.error("OpenAI API error: #{e.message}")
-    "Error generating music"
   end
 end
