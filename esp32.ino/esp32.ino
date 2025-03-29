@@ -287,6 +287,9 @@ void loop() {
   //   digitalWrite(ledPin, LOW);
   // }
 
+  if (sensorValue > 730) {
+    Serial.println("=============- generate Alert ===================");
+  }
 
   //button
   buttonState = digitalRead(buttonPin);
