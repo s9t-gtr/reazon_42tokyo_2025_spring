@@ -1,24 +1,30 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <uTimerLib.h> //Timer: need to install by Library Manager
 
 // set pin numbers
 
 // buttons
 const int buttonPin = 14; // ボタンのピン番号
+int buttonState = 0;     // 現在のボタンの状態
+int lastButtonState = 0; // 前回のボタンの状態
+
 // 加速度センサー
 const int xPin = 16; // X軸のピン番号
 const int yPin = 17; // Y軸のピン番号
 const int zPin = 18; // Z軸のピン番号
-int buttonState = 0;     // 現在のボタンの状態
-int lastButtonState = 0; // 前回のボタンの状態
 
 const int ledPin = 36;     // LED pin
+int led_on = 0;
 const int volPin = 2;//圧力センサ用アナログピン
+#define PIEZO_SPEAKER_PIN GPIO_NUM_12 //speaker pin
+
 
 const char* ssid = "hi_guest";
 const char* password = "guestP@sS";
 const char* url = "http://abehiroshi.la.coocan.jp/top.htm";
 
+#define TIMER_INRERVAL 30000000 // 30秒間隔で実行
 ////////////////////
 // 加速度センサー //
 // KXR94-2050     //
@@ -83,6 +89,9 @@ void setup() {
   Serial.println("\nWi-Fiに接続完了");
   Serial.print("IPアドレス: ");
   Serial.println(WiFi.localIP());
+
+  // Timer setup
+  TimerLib.setInterval_us(sendNextSectionRequest, TIMER_INRERVAL);
 }
 
 // センサーのキャリブレーション
@@ -142,7 +151,7 @@ void startRequest() {
       if (httpCode == HTTP_CODE_OK) { // ステータスコードが200の場合
         String payload = http.getString(); // レスポンスの内容を取得
         Serial.println("受信したデータ:");
-        Serial.println(payload);
+        // Serial.println(payload);
       }
     } else {
       Serial.printf("GETリクエストに失敗: %s\n", http.errorToString(httpCode).c_str());
@@ -160,6 +169,7 @@ void startRequest() {
   }
 
 }
+
 brushState brushState = Stop;
 void loop() {
   ///////////////////////////
@@ -260,9 +270,9 @@ void loop() {
   lastTime = currentTime;
   
   // シリアルプロッタ用のデータ出力
-  Serial.print(accelerationMagnitude);
-  Serial.print(",");
-  Serial.println(vibrationsPerSecond);
+  // Serial.print(accelerationMagnitude);
+  // Serial.print(",");
+  // Serial.println(vibrationsPerSecond);
   
 //   delay(50); // サンプリング間隔（50ms = 20Hzサンプリング）
   //////////////////
@@ -277,16 +287,8 @@ void loop() {
   int sensorValue = analogRead(volPin);
   Serial.print("press value");
   Serial.println(sensorValue);
- 
   //センサーの値が2000未満になったらLED点灯。そうでなければ消灯。
   //センサーの種類によって感度が変わるので、反応が鈍かったり強かったりした場合は2000を上げたり下げたりして調整してみてください。
-  // if (sensorValue < 2000) {
-  //   digitalWrite(ledPin, HIGH);
-  // }
-  // else {
-  //   digitalWrite(ledPin, LOW);
-  // }
-
   if (sensorValue > 730) {
     Serial.println("=============- generate Alert ===================");
   }
@@ -306,15 +308,55 @@ void loop() {
   }
   // Serial.println(buttonState);zzz
   delay(100);
-  // if the button is pressed
-  if (buttonState == HIGH) {
-    // turn LED on
-    digitalWrite(ledPin, HIGH);
-
-  } else {
-    // turn LED off
-    digitalWrite(ledPin, LOW);
-  }
   lastButtonState = buttonState;
+}
+
+  //////////////////////////////
+  // Timerとbeep //
+  //////////////////////////////
+void sendNextSectionRequest() {
+  Serial.println("send nextSection Request");
+  beep();
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+
+    http.begin(url); // URLを指定
+    http.addHeader("Content-Type", "application/json"); // 一応付けておく（ボディなくても）
+
+    Serial.printf("PUTリクエスト送信中: %s\n", url);
+    int httpCode = http.sendRequest("PUT"); // ボディなしPUT
+
+    if (httpCode > 0) {
+      Serial.printf("HTTPステータスコード: %d\n", httpCode);
+      String response = http.getString();
+      Serial.println("レスポンス:");
+      Serial.println(response);
+    } else {
+      Serial.printf("PUTリクエストに失敗: %s\n", http.errorToString(httpCode).c_str());
+    }
+
+    http.end();
+  } else {
+    Serial.println("Wi-Fiが切断されています。再接続中...");
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("\n再接続完了");
+  }
+}
+
+// ビープ音を出す関数, 録音合図のため作成
+void beep() {
+  const int frequency = 2000; // Hz
+  const int resolution = 8; // 8-bit resolution
+  const int duty = 2; // 50% デューティ（最大255）
+
+  ledcAttach(PIEZO_SPEAKER_PIN, frequency, resolution);
+
+  ledcWrite(PIEZO_SPEAKER_PIN, duty);  // 音を出す
+  delay(1000);                         // 1s
+  ledcWrite(PIEZO_SPEAKER_PIN, 0);     // 音を止める
 }
 
